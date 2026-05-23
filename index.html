@@ -569,6 +569,16 @@ function initAudio() {
     }
     if (!audioInitialized && !isMuted) {
         audioInitialized = true;
+        try {
+            // iOS/Safari対策: 空のバッファを再生してサウンド出力をアンロック
+            const buffer = audioCtx.createBuffer(1, 1, 22050);
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioCtx.destination);
+            source.start(0);
+        } catch (e) {
+            console.warn("Audio unlock failed:", e);
+        }
         startAmbientBreeze();
         scheduleBirds();         // 鳥のさえずりのスケジューリング開始
         scheduleAmbientMelody(); // 癒やしの背景メロディのスケジューリング開始
@@ -2253,6 +2263,10 @@ window.addEventListener('resize', () => {
     render.options.height = h;
     loadLevel(currentLevel);
 });
+
+// iOS/Androidモバイルブラウザの音声再生制限解除用のタッチ・クリックリスナー
+window.addEventListener('click', initAudio, { passive: true });
+window.addEventListener('touchstart', initAudio, { passive: true });
 
 </script>
 </body>
