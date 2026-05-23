@@ -776,10 +776,15 @@ function startAmbientBreeze() {
         // フィルター周波数をランダムに変動させて風の揺らぎを表現
         function modulateWind() {
             if (!ambientNode || isMuted) return;
-            const targetFreq = 120 + Math.random() * 160;
-            const transitionTime = 2.5 + Math.random() * 3;
-            filter.frequency.exponentialRampToValueAtTime(targetFreq, audioCtx.currentTime + transitionTime);
-            setTimeout(modulateWind, transitionTime * 1000);
+            try {
+                const targetFreq = 120 + Math.random() * 160;
+                const transitionTime = 2.5 + Math.random() * 3;
+                filter.frequency.setValueAtTime(filter.frequency.value, audioCtx.currentTime);
+                filter.frequency.linearRampToValueAtTime(targetFreq, audioCtx.currentTime + transitionTime);
+                setTimeout(modulateWind, transitionTime * 1000);
+            } catch (e) {
+                console.warn("Wind modulation failed:", e);
+            }
         }
         modulateWind();
     } catch (e) {
@@ -2165,6 +2170,7 @@ function renderSlots() {
         const editBtn = card.querySelector('.slot-edit-btn');
         editBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            initAudio();
             const newName = prompt('新しいプレイヤー名を入力してください（最大10文字）：', name);
             if (newName !== null && newName.trim() !== '') {
                 const trimmed = newName.trim().substring(0, 10);
@@ -2175,6 +2181,7 @@ function renderSlots() {
         });
         
         const selectSlot = () => {
+            initAudio();
             selectSlotId(i);
         };
         card.addEventListener('click', selectSlot);
@@ -2264,9 +2271,10 @@ window.addEventListener('resize', () => {
     loadLevel(currentLevel);
 });
 
-// iOS/Androidモバイルブラウザの音声再生制限解除用のタッチ・クリックリスナー
-window.addEventListener('click', initAudio, { passive: true });
-window.addEventListener('touchstart', initAudio, { passive: true });
+// iOS/Androidモバイルブラウザの音声再生制限解除用のタッチ・クリックリスナー (キャプチャフェーズで検知して他ライブラリの干渉を防ぐ)
+window.addEventListener('click', initAudio, true);
+window.addEventListener('touchstart', initAudio, true);
+window.addEventListener('touchend', initAudio, true);
 
 </script>
 </body>
