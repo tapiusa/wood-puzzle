@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>木々運動 (Mokumoku Undo) - 極上の木製パズル</title>
+    <!-- Google Fonts for Premium Typographical Aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
+    <!-- Matter.js 物理エンジン -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        :root {
+            --color-bg-start: #4e3629;
+            --color-bg-end: #2a1b15;
+            --color-text: #f5efe6;
+            --color-text-light: #c7bdae;
+            --color-button: #5d4337;
+            --color-button-active: #4e3629;
+            --color-shadow: rgba(0, 0, 0, 0.25);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: var(--color-bg-end);
+            font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 無印良品・北欧風のナチュラル＆ミニマルなUI */
+        #ui {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            color: var(--color-text);
+            pointer-events: none;
+            z-index: 5;
+            transition: opacity 0.3s;
+        }
+
+        #level-indicator {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            margin-bottom: 6px;
+        }
+
+        #stage-theme {
+            font-size: 15px;
+            font-weight: 400;
+            color: var(--color-text-light);
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        #instruction {
+            font-size: 16px;
+            color: var(--color-text);
+            opacity: 0.85;
+            line-height: 1.5;
+            max-width: 320px;
+        }
+
+        /* Controls Area */
+        #controls {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            display: flex;
+            gap: 15px;
+            pointer-events: auto;
+            z-index: 5;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            background-color: var(--color-button);
+            color: var(--color-text);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 6px 16px var(--color-shadow);
+            transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+            outline: none;
+        }
+
+        .btn:hover {
+            background-color: var(--color-text);
+            color: #2a1b15;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+        }
+
+        .btn:active {
+            background-color: var(--color-button-active);
+            transform: translateY(0) scale(0.96);
+        }
+
+        /* Menu Button */
+        #menu-btn {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            pointer-events: auto;
+            z-index: 5;
+        }
+
+        /* Stage Selector Drawer overlay */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(78, 54, 41, 0.2);
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 90;
+        }
+
+        #overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Stage Selector Drawer */
+        #drawer {
+            position: fixed;
+            top: 0;
+            right: -360px;
+            width: 340px;
+            height: 100%;
+            background-color: #f7f1e9;
+            box-shadow: -8px 0 30px rgba(78, 54, 41, 0.15);
+            transition: right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            z-index: 100;
+            padding: 50px 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #drawer.open {
+            right: 0;
+        }
+
+        #drawer-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 25px;
+            border-bottom: 2px solid #e2d7c7;
+            padding-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        #drawer-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: var(--color-text-light);
+            cursor: pointer;
+            outline: none;
+            transition: color 0.2s;
+        }
+
+        #drawer-close:hover {
+            color: var(--color-text);
+        }
+
+        #stage-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            overflow-y: auto;
+            padding-right: 5px;
+            flex-grow: 1;
+        }
+
+        .stage-tile {
+            aspect-ratio: 1;
+            background-color: #e8ded0;
+            border: 1px solid rgba(78, 54, 41, 0.1);
+            border-radius: 12px;
+            color: var(--color-text);
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .stage-tile:hover {
+            background-color: var(--color-text-light);
+            color: #fff;
+            transform: scale(1.05);
+        }
+
+        .stage-tile.active {
+            background-color: var(--color-text);
+            color: #fff;
+            border-color: var(--color-text);
+        }
+
+        .stage-tile.cleared::after {
+            content: "✓";
+            position: absolute;
+            bottom: 4px;
+            right: 6px;
+            font-size: 10px;
+            color: #66bb6a;
+            font-weight: bold;
+        }
+
+        /* Sound Indicator Toggle */
+        #mute-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--color-text-light);
+            font-size: 20px;
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            z-index: 5;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        }
+
+        /* タイマー表示 */
+        #timer-display {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--color-text-light);
+            margin-top: 10px;
+            font-family: monospace; /* 等幅フォントでタイムの揺れを防ぐ */
+            letter-spacing: 1px;
+        }
+
+        /* セーブスロット選択画面オーバーレイ */
+        #slot-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(42, 27, 21, 0.85);
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        #slot-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+        #slot-container {
+            width: 90%;
+            max-width: 500px;
+            background-color: #f7f1e9;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+            padding: 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border: 1px solid rgba(78, 54, 41, 0.15);
+        }
+        #slot-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #4e3629;
+            text-align: center;
+            border-bottom: 2px solid #e2d7c7;
+            padding-bottom: 15px;
+            margin: 0;
+        }
+        .slot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .slot-card {
+            background-color: #e8ded0;
+            border: 1px solid rgba(78, 54, 41, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+        }
+        .slot-card:hover {
+            transform: translateY(-2px);
+            background-color: #dfd4c5;
+            border-color: #4e3629;
+        }
+        .slot-card.active {
+            border: 2px solid #9b7661;
+            background-color: #e2d3bf;
+        }
+        .slot-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            pointer-events: none;
+        }
+        .slot-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #4e3629;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            pointer-events: auto;
+        }
+        .slot-edit-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            opacity: 0.6;
+            padding: 4px;
+            border-radius: 4px;
+            transition: opacity 0.2s;
+        }
+        .slot-edit-btn:hover {
+            opacity: 1;
+            background-color: rgba(78, 54, 41, 0.08);
+        }
+        .slot-meta {
+            font-size: 13px;
+            color: #8d7768;
+        }
+        .slot-select-btn {
+            padding: 8px 16px;
+            background-color: #9b7661;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .slot-select-btn:hover {
+            background-color: #4e3629;
+        }
+
+        /* 自己ベスト更新トースト */
+        #toast-container {
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background-color: #9b7661;
+            color: #f5efe6;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-weight: 600;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        #toast-container.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast-title {
+            font-size: 18px;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+        .toast-detail {
+            font-size: 13px;
+            color: #f5efe6;
+            opacity: 0.9;
+        }
+
+        /* ドロワー内のステージ別タイム表示 */
+        .stage-time {
+            font-size: 10px;
+            color: #8d7768;
+            margin-top: 4px;
+            font-family: monospace;
+        }
+        .stage-tile {
+            flex-direction: column;
+            height: auto !important;
+            padding: 12px 4px !important;
+            aspect-ratio: auto !important; /* アスペクト比固定を解除して縦幅を可変にする */
+            min-height: 65px;
+        }
+
+        /* ユーザー切替ボタン */
+        #slot-btn {
+            position: absolute;
+            top: 40px;
+            right: 175px; /* ステージ一覧ボタンの左側に配置 */
+            pointer-events: auto;
+            z-index: 5;
+        }
+
+        /* 縦画面スマホ用レスポンシブUI */
+        @media (max-width: 768px) {
+            #ui {
+                left: 5% !important;
+                right: 5% !important;
+                top: 20px !important;
+                width: 90% !important;
+                text-align: center !important;
+                max-width: none !important;
+            }
+            #level-indicator {
+                font-size: 26px !important;
+            }
+            #stage-theme {
+                font-size: 13px !important;
+                margin-bottom: 6px !important;
+            }
+            #instruction {
+                font-size: 14px !important;
+                margin: 0 auto !important;
+                max-width: 90% !important;
+            }
+            #ui.mobile-layout #timer-display {
+                margin-top: 4px;
+            }
+            #slot-btn {
+                top: auto !important;
+                bottom: 25px !important;
+                right: 50% !important;
+                transform: translateX(50%) !important;
+                margin-right: 0px !important; /* 中央に配置 */
+                z-index: 6 !important;
+            }
+            #menu-btn {
+                top: auto !important;
+                bottom: 25px !important;
+                right: 50% !important;
+                transform: translateX(50%) !important;
+                margin-right: -105px !important; /* ３ボタン並べるため右に寄せる */
+            }
+            #controls {
+                bottom: 25px !important;
+                right: 50% !important;
+                transform: translateX(50%) !important;
+                margin-right: 105px !important; /* ３ボタン並べるため左に寄せる */
+            }
+            #mute-btn {
+                bottom: 25px !important;
+                left: 20px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div id="level-indicator">ステージ 1</div>
+    <div id="stage-theme">第1段階：きほん（チュートリアル）</div>
+    <div id="instruction">すべての木の板を下に落としましょう</div>
+    <div id="timer-display">⏱ 00:00.00</div>
+</div>
+
+<button id="slot-btn" class="btn">ユーザー切替</button>
+<button id="menu-btn" class="btn">ステージ一覧</button>
+
+<div id="controls">
+    <button id="reset-btn" class="btn">リセット</button>
+</div>
+
+<button id="mute-btn" title="ミュート切替">🔊</button>
+
+<!-- Stage Selector Drawer -->
+<div id="overlay"></div>
+<div id="drawer">
+    <button id="drawer-close">&times;</button>
+    <div id="drawer-title">ステージ選択</div>
+    <div id="stage-grid">
+        <!-- Generated Dynamically -->
+    </div>
+</div>
+
+<!-- セーブスロット選択画面モーダル -->
+<div id="slot-overlay">
+    <div id="slot-container">
+        <h2 id="slot-title">ユーザー選択</h2>
+        <div id="slot-list" class="slot-list">
+            <!-- 5つのスロットカードがJSにより動的に生成されます -->
+        </div>
+    </div>
+</div>
+
+<!-- 自己ベスト更新通知トースト -->
+<div id="toast-container">
+    <div class="toast-title">🏆 自己ベスト更新！ 🏆</div>
+    <div id="toast-time" class="toast-detail">00.00秒</div>
+</div>
+
+<script>
+const { Engine, Render, Runner, Bodies, Composite, Constraint, Mouse, MouseConstraint, Events, Vector } = Matter;
+
+const engine = Engine.create();
+const world = engine.world;
+engine.gravity.y = 0.8; // 心地よいゆったりとした重力
+
+const render = Render.create({
+    element: document.body,
+    engine: engine,
+    options: {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        wireframes: false,
+        background: '#2a1b15' // Canvas default background color, styled over in afterRender
+    }
+});
+
+Render.run(render);
+const runner = Runner.create();
+Runner.run(runner, engine);
+
+// --- Web Audio API ASMR 音響設計 ---
+let audioCtx = null;
+let ambientNode = null;
+let isMuted = false;
+let audioInitialized = false;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    if (!audioInitialized && !isMuted) {
+        audioInitialized = true;
+        startAmbientBreeze();
+        scheduleBirds();         // 鳥のさえずりのスケジューリング開始
+        scheduleAmbientMelody(); // 癒やしの背景メロディのスケジューリング開始
+    }
+}
+
+// 釘を抜く時の「カタッ」という木と木がぶつかる音（旧 playPopSound）
+function playPopSound() {
+    if (isMuted || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    
+    // アタック（高周波の木のカチッという音）
+    const oscClick = audioCtx.createOscillator();
+    const gainClick = audioCtx.createGain();
+    oscClick.type = 'triangle';
+    oscClick.frequency.setValueAtTime(650, now);
+    oscClick.frequency.exponentialRampToValueAtTime(160, now + 0.04);
+    gainClick.gain.setValueAtTime(0.25, now);
+    gainClick.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    
+    oscClick.connect(gainClick);
+    gainClick.connect(audioCtx.destination);
+    oscClick.start(now);
+    oscClick.stop(now + 0.04);
+
+    // 余韻（低音の木製ボディの響き）
+    const oscBody = audioCtx.createOscillator();
+    const gainBody = audioCtx.createGain();
+    oscBody.type = 'sine';
+    oscBody.frequency.setValueAtTime(190, now);
+    oscBody.frequency.exponentialRampToValueAtTime(70, now + 0.12);
+    gainBody.gain.setValueAtTime(0.3, now);
+    gainBody.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    
+    oscBody.connect(gainBody);
+    gainBody.connect(audioCtx.destination);
+    oscBody.start(now);
+    oscBody.stop(now + 0.12);
+}
+
+// 釘を刺す時の「コトッ」という温かい木の音
+function playTunkSound() {
+    if (isMuted || !audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(160, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.08);
+
+    gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
+}
+
+// 木の板が落下して釘にぶつかったときの「ポコッ」という乾いた木の音
+function playPlankHitScrewSound() {
+    if (isMuted || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220 + Math.random() * 40, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.06);
+    
+    gain.gain.setValueAtTime(0.12, now); // さりげない衝突音
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    
+    osc.start(now);
+    osc.stop(now + 0.06);
+}
+
+// 木の板同士がぶつかった・こすれ合ったときの「コトッ」という音
+function playPlankHitPlankSound() {
+    if (isMuted || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140 + Math.random() * 30, now);
+    osc.frequency.exponentialRampToValueAtTime(60, now + 0.08);
+    
+    gain.gain.setValueAtTime(0.08, now); // こすれる音なので控えめに
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    
+    osc.start(now);
+    osc.stop(now + 0.08);
+}
+
+// 木の板が落ちた時の「コトーン」という鈍い木の響き
+function playPlankFallSound() {
+    if (isMuted || !audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(90, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(30, audioCtx.currentTime + 0.25);
+
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.25);
+}
+
+// ステージクリア時の純粋な木製ウィンドチャイムの響き
+function playChimeSound() {
+    if (isMuted || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    
+    // 心地よい和音の周波数（C5, D5, E5, G5, A5, C6 - きらびやかな木製チャイム）
+    const notes = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50];
+    
+    notes.forEach((freq, index) => {
+        const playTime = now + index * 0.06; // 少しゆったりとしたアルペジオ間隔
+        
+        // 1. 胴鳴り（木製の丸みのある共鳴音）
+        const oscBody = audioCtx.createOscillator();
+        const gainBody = audioCtx.createGain();
+        oscBody.type = 'triangle';
+        oscBody.frequency.setValueAtTime(freq, playTime);
+        
+        // 2. アタック（木製ブロックを叩いた瞬間のカチッという打撃音を優しくする）
+        const oscClick = audioCtx.createOscillator();
+        const gainClick = audioCtx.createGain();
+        oscClick.type = 'sine';
+        oscClick.frequency.setValueAtTime(freq * 3.0, playTime);
+        
+        // 接続
+        oscBody.connect(gainBody);
+        gainBody.connect(audioCtx.destination);
+        oscClick.connect(gainClick);
+        gainClick.connect(audioCtx.destination);
+        
+        // 音量・減衰制御（より小さく、優しく包み込む響きに調整）
+        gainBody.gain.setValueAtTime(0.12, playTime); // 音量を0.24から0.12へ下げてやさしく
+        gainBody.gain.exponentialRampToValueAtTime(0.001, playTime + 0.65); // 余韻を少し長めにして柔らかくフェードアウト
+        
+        gainClick.gain.setValueAtTime(0.05, playTime); // アタック音を0.14から0.05へ小さく
+        gainClick.gain.exponentialRampToValueAtTime(0.001, playTime + 0.03);
+        
+        oscBody.start(playTime);
+        oscBody.stop(playTime + 0.65);
+        
+        oscClick.start(playTime);
+        oscClick.stop(playTime + 0.03);
+    });
+}
+
+// 森のそよ風を模した極めて静かな環境音の合成
+function startAmbientBreeze() {
+    if (!audioCtx) return;
+    try {
+        const bufferSize = audioCtx.sampleRate * 2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+        noiseSource.loop = true;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 180;
+        filter.Q.value = 2.0;
+
+        const filterGain = audioCtx.createGain();
+        filterGain.gain.value = 0.015; // 囁くような音量
+
+        noiseSource.connect(filter);
+        filter.connect(filterGain);
+        filterGain.connect(audioCtx.destination);
+
+        noiseSource.start();
+        ambientNode = { source: noiseSource, filter: filter, gain: filterGain };
+
+        // フィルター周波数をランダムに変動させて風の揺らぎを表現
+        function modulateWind() {
+            if (!ambientNode || isMuted) return;
+            const targetFreq = 120 + Math.random() * 160;
+            const transitionTime = 2.5 + Math.random() * 3;
+            filter.frequency.exponentialRampToValueAtTime(targetFreq, audioCtx.currentTime + transitionTime);
+            setTimeout(modulateWind, transitionTime * 1000);
+        }
+        modulateWind();
+    } catch (e) {
+        console.warn("Ambient breeze synthesis failed:", e);
+    }
+}
+
+// プロセデュアルに鳥のさえずりをランダムに生成・再生する
+function playBirdChirp() {
+    if (isMuted || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const numChirps = 2 + Math.floor(Math.random() * 3); // 1回のさえずりで2〜4声鳴く
+    let startTime = now;
+    
+    for (let i = 0; i < numChirps; i++) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.type = 'sine';
+        // 鳥の声の高周波数スイープ
+        osc.frequency.setValueAtTime(2800 + Math.random() * 400, startTime);
+        osc.frequency.exponentialRampToValueAtTime(4500 + Math.random() * 500, startTime + 0.05);
+        osc.frequency.exponentialRampToValueAtTime(3200 + Math.random() * 300, startTime + 0.12);
+        
+        gain.gain.setValueAtTime(0.001, startTime);
+        gain.gain.linearRampToValueAtTime(0.03, startTime + 0.02); // 優しい鳴き声に調整
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
+        
+        osc.start(startTime);
+        osc.stop(startTime + 0.12);
+        
+        startTime += 0.18 + Math.random() * 0.08; // 次の鳴き声までのわずかな間隔
+    }
+}
+
+function scheduleBirds() {
+    if (!isMuted && audioCtx) {
+        playBirdChirp();
+    }
+    // 8秒〜20秒の間隔で不定期に鳥を鳴かせる
+    setTimeout(scheduleBirds, 8000 + Math.random() * 12000);
+}
+
+// 背景で静かに流れる癒やしのサイン波パッドメロディ
+const pentatonicScale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25]; // ハ長調ペンタトニック
+function playAmbientMelody() {
+    if (isMuted || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const note = pentatonicScale[Math.floor(Math.random() * pentatonicScale.length)];
+    
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(note, now);
+    
+    // スローアタック＆スローリリース
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.025, now + 1.2); // 非常に優しく立ち上げる
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 4.8);
+    
+    osc.start(now);
+    osc.stop(now + 4.8);
+}
+
+function scheduleAmbientMelody() {
+    if (!isMuted && audioCtx) {
+        playAmbientMelody();
+    }
+    // 4秒〜8秒の間隔で1音ずつ静かに重ねていく
+    setTimeout(scheduleAmbientMelody, 4000 + Math.random() * 4000);
+}
+
+function stopAmbientBreeze() {
+    if (ambientNode) {
+        try {
+            ambientNode.source.stop();
+        } catch (e) {}
+        ambientNode = null;
+    }
+    audioInitialized = false;
+}
+
+// ミュートボタンのハンドラ
+document.getElementById('mute-btn').addEventListener('click', () => {
+    isMuted = !isMuted;
+    document.getElementById('mute-btn').innerText = isMuted ? '🔇' : '🔊';
+    initAudio();
+    if (isMuted) {
+        stopAmbientBreeze();
+    } else {
+        startAmbientBreeze();
+    }
+});
+
+
+// --- カラーパレット（無印良品・北欧森林風） ---
+const colors = {
+    bgGradStart: '#4e3629', // ミディアムダークの温かい木の色
+    bgGradEnd: '#2a1b15',   // 深みのあるダークブラウン
+    plank: '#e2d6c5',       // 木の板
+    plankBorder: '#cca385', // 板のフチの暖かみのある木目調
+    screw: '#9b7661',       // 木の釘（真鍮・木目風）
+    hole: '#1a0f0b',        // 釘穴の影（より濃く深くして視認性を高める）
+    leaf: '#8fae8d',        // 癒やしの緑をより豊かに
+    leafVein: '#6d8c6b'
+};
+
+// --- レベル状態管理 ---
+let currentLevel = parseInt(localStorage.getItem('mokumoku_current_level') || '1');
+let maxClearedLevel = parseInt(localStorage.getItem('mokumoku_max_level') || '1');
+let selectedScrew = null;
+let planks = [];
+let screws = [];
+let levelHoles = []; // 現在のステージにおける全ての釘穴
+let isLevelCleared = false;
+
+// --- セーブスロット・タイマー状態管理 ---
+let currentSlot = localStorage.getItem('mokumoku_current_slot') || null;
+let slotPrefix = currentSlot ? `mokumoku_slot_${currentSlot}_` : '';
+let levelStartTime = 0;
+let timerRunning = false;
+
+// --- グローバル座標系・スケーリング設定 ---
+let globalScale = 1.0;
+let globalOffsetX = 0;
+let globalOffsetY = 0;
+
+const themeNames = {
+    1: "第1段階：きほん（チュートリアル）",
+    2: "第2段階：かさなり（順番の意識）",
+    3: "第3段階：へんけい（色んなカタチ）",
+    4: "第4段階：やりくり（空き穴の制限）",
+    5: "第5段階：総決算（心地よい連鎖）"
+};
+
+const instructions = {
+    1: "すべての木の板を下に落としましょう",
+    2: "斜めに架かる板。重力でどう動く？",
+    3: "支点を減らすと、板はブランコのように揺れます",
+    4: "2つの板が1つの釘で繋がっています",
+    5: "重なる板。先に落とすべきはどちら？",
+    6: "交差する板。順番を慎重に考えて",
+    7: "並行に並ぶ板。限られた穴をやりくりしましょう",
+    8: "大きな板が小さな板を塞いでいます",
+    9: "斜めに傾いた正方形。バランスが崩れると…",
+    10: "盾のようにそびえる板。支えを取り除きましょう",
+    11: "T字のフレーム。接合部を外すタイミングが鍵",
+    12: "くさび型の配置。複雑な形状を分解して",
+    13: "空き穴はたったの1つ。釘をどこへ逃がす？",
+    14: "ゲートを塞ぐ板。限られたスペースを使いこなして",
+    15: "ループ状の三角形。循環する穴のパズル",
+    16: "5本の釘と1つの空き穴。緻密な手順が必要です",
+    17: "階段状の連鎖。上から順に崩していきましょう",
+    18: "風車のように噛み合う板。ループを断ち切れ！",
+    19: "複雑なグリッド。絡まる糸を解くように",
+    20: "木々の星。20ステージの頂点へようこそ"
+};
+
+// --- 20ステージの完全データ設計（5段階 × 各4ステージ） ---
+const levels = {
+    // --- 第1段階：きほん ---
+    1: {
+        planks: [{ x: 0.5, y: 0.35, w: 0.6, h: 0.05, angle: 0 }],
+        screws: [{ x: 0.3, y: 0.35 }, { x: 0.7, y: 0.35 }],
+        holes: [{ x: 0.5, y: 0.6 }]
+    },
+    2: {
+        planks: [{ x: 0.5, y: 0.4, w: 0.5, h: 0.05, angle: 0.2 }],
+        screws: [{ x: 0.4, y: 0.38 }, { x: 0.6, y: 0.42 }],
+        holes: [{ x: 0.3, y: 0.6 }, { x: 0.7, y: 0.6 }]
+    },
+    3: {
+        planks: [{ x: 0.5, y: 0.3, w: 0.6, h: 0.05, angle: 0 }],
+        screws: [{ x: 0.5, y: 0.3 }, { x: 0.3, y: 0.3 }],
+        holes: [{ x: 0.5, y: 0.5 }]
+    },
+    4: {
+        planks: [
+            { x: 0.4, y: 0.35, w: 0.3, h: 0.05, angle: 0.5 },
+            { x: 0.6, y: 0.35, w: 0.3, h: 0.05, angle: -0.5 }
+        ],
+        screws: [{ x: 0.3, y: 0.295 }, { x: 0.7, y: 0.295 }, { x: 0.5, y: 0.405 }],
+        holes: [{ x: 0.3, y: 0.6 }, { x: 0.7, y: 0.6 }]
+    },
+
+    // --- 第2段階：かさなり ---
+    5: {
+        planks: [
+            { x: 0.5, y: 0.35, w: 0.6, h: 0.05, angle: 0 },
+            { x: 0.5, y: 0.45, w: 0.05, h: 0.4, angle: 0 }
+        ],
+        screws: [{ x: 0.3, y: 0.35 }, { x: 0.7, y: 0.35 }, { x: 0.5, y: 0.35 }],
+        holes: [{ x: 0.5, y: 0.7 }]
+    },
+    6: {
+        planks: [
+            { x: 0.5, y: 0.35, w: 0.5, h: 0.05, angle: 0.6 },
+            { x: 0.5, y: 0.35, w: 0.5, h: 0.05, angle: -0.6 }
+        ],
+        screws: [{ x: 0.5, y: 0.35 }, { x: 0.35, y: 0.247 }, { x: 0.65, y: 0.247 }],
+        holes: [{ x: 0.35, y: 0.6 }, { x: 0.65, y: 0.6 }]
+    },
+    7: {
+        planks: [
+            { x: 0.5, y: 0.3, w: 0.5, h: 0.05, angle: 0 },
+            { x: 0.5, y: 0.42, w: 0.5, h: 0.05, angle: 0 }
+        ],
+        screws: [{ x: 0.3, y: 0.3 }, { x: 0.7, y: 0.3 }, { x: 0.3, y: 0.42 }, { x: 0.7, y: 0.42 }],
+        holes: [{ x: 0.5, y: 0.55 }, { x: 0.5, y: 0.65 }]
+    },
+    8: {
+        planks: [
+            { x: 0.5, y: 0.35, w: 0.2, h: 0.2, angle: 0 },
+            { x: 0.5, y: 0.45, w: 0.5, h: 0.05, angle: 0 }
+        ],
+        screws: [{ x: 0.43, y: 0.28 }, { x: 0.57, y: 0.28 }, { x: 0.43, y: 0.42 }, { x: 0.57, y: 0.42 }],
+        holes: [{ x: 0.3, y: 0.6 }, { x: 0.7, y: 0.6 }]
+    },
+
+    // --- 第3段階：へんけい ---
+    9: {
+        planks: [{ x: 0.5, y: 0.35, w: 0.25, h: 0.25, angle: Math.PI/4 }],
+        screws: [{ x: 0.5, y: 0.35 }, { x: 0.5, y: 0.18 }],
+        holes: [{ x: 0.5, y: 0.6 }, { x: 0.2, y: 0.4 }]
+    },
+    10: {
+        planks: [
+            { x: 0.5, y: 0.35, w: 0.2, h: 0.2, angle: 0 },
+            { x: 0.35, y: 0.45, w: 0.3, h: 0.04, angle: -0.5 },
+            { x: 0.65, y: 0.45, w: 0.3, h: 0.04, angle: 0.5 }
+        ],
+        screws: [{ x: 0.5, y: 0.27 }, { x: 0.23, y: 0.515 }, { x: 0.77, y: 0.515 }, { x: 0.45, y: 0.395 }, { x: 0.55, y: 0.395 }],
+        holes: [{ x: 0.5, y: 0.65 }, { x: 0.5, y: 0.18 }]
+    },
+    11: {
+        planks: [
+            { x: 0.5, y: 0.28, w: 0.5, h: 0.04, angle: 0 },
+            { x: 0.5, y: 0.42, w: 0.04, h: 0.3, angle: 0 }
+        ],
+        screws: [{ x: 0.3, y: 0.28 }, { x: 0.7, y: 0.28 }, { x: 0.5, y: 0.28 }],
+        holes: [{ x: 0.35, y: 0.6 }, { x: 0.65, y: 0.6 }]
+    },
+    12: {
+        planks: [
+            { x: 0.5, y: 0.34, w: 0.22, h: 0.24, angle: 0.2 },
+            { x: 0.35, y: 0.46, w: 0.25, h: 0.03, angle: 0.1 },
+            { x: 0.65, y: 0.46, w: 0.25, h: 0.03, angle: -0.1 }
+        ],
+        screws: [{ x: 0.5, y: 0.24 }, { x: 0.25, y: 0.45 }, { x: 0.75, y: 0.45 }, { x: 0.42, y: 0.45 }, { x: 0.58, y: 0.45 }],
+        holes: [{ x: 0.5, y: 0.6 }, { x: 0.25, y: 0.6 }, { x: 0.75, y: 0.6 }]
+    },
+
+    // --- 第4段階：やりくり ---
+    13: {
+        planks: [
+            { x: 0.4, y: 0.35, w: 0.4, h: 0.04, angle: 0 },
+            { x: 0.6, y: 0.35, w: 0.4, h: 0.04, angle: 0.1 }
+        ],
+        screws: [{ x: 0.25, y: 0.35 }, { x: 0.5, y: 0.35 }, { x: 0.75, y: 0.375 }],
+        holes: [{ x: 0.5, y: 0.55 }]
+    },
+    14: {
+        planks: [
+            { x: 0.35, y: 0.4, w: 0.04, h: 0.3, angle: 0 },
+            { x: 0.65, y: 0.4, w: 0.04, h: 0.3, angle: 0 },
+            { x: 0.5, y: 0.25, w: 0.44, h: 0.04, angle: 0 }
+        ],
+        screws: [{ x: 0.35, y: 0.25 }, { x: 0.65, y: 0.25 }, { x: 0.35, y: 0.5 }, { x: 0.65, y: 0.5 }],
+        holes: [{ x: 0.5, y: 0.45 }, { x: 0.5, y: 0.6 }]
+    },
+    15: {
+        planks: [
+            { x: 0.5, y: 0.45, w: 0.38, h: 0.04, angle: 0 },
+            { x: 0.41, y: 0.335, w: 0.31, h: 0.04, angle: 2.23 },
+            { x: 0.59, y: 0.335, w: 0.31, h: 0.04, angle: 0.91 }
+        ],
+        screws: [{ x: 0.32, y: 0.45 }, { x: 0.68, y: 0.45 }, { x: 0.5, y: 0.22 }],
+        holes: [{ x: 0.5, y: 0.37 }]
+    },
+    16: {
+        planks: [
+            { x: 0.5, y: 0.3, w: 0.6, h: 0.04, angle: 0 },
+            { x: 0.36, y: 0.4, w: 0.38, h: 0.04, angle: 0.620 },
+            { x: 0.64, y: 0.4, w: 0.38, h: 0.04, angle: -0.620 }
+        ],
+        screws: [{ x: 0.22, y: 0.3 }, { x: 0.78, y: 0.3 }, { x: 0.35, y: 0.3 }, { x: 0.65, y: 0.3 }, { x: 0.5, y: 0.5 }],
+        holes: [{ x: 0.5, y: 0.18 }]
+    },
+
+    // --- 第5段階：総決算 ---
+    17: {
+        planks: [
+            { x: 0.35, y: 0.25, w: 0.3, h: 0.04, angle: 0.7854 },
+            { x: 0.45, y: 0.35, w: 0.3, h: 0.04, angle: 0.7854 },
+            { x: 0.55, y: 0.45, w: 0.3, h: 0.04, angle: 0.7854 },
+            { x: 0.65, y: 0.55, w: 0.3, h: 0.04, angle: 0.7854 }
+        ],
+        screws: [{ x: 0.3, y: 0.2 }, { x: 0.4, y: 0.3 }, { x: 0.5, y: 0.4 }, { x: 0.6, y: 0.5 }, { x: 0.7, y: 0.6 }],
+        holes: [{ x: 0.3, y: 0.65 }, { x: 0.7, y: 0.65 }]
+    },
+    18: {
+        planks: [
+            { x: 0.5, y: 0.28, w: 0.4, h: 0.04, angle: 0 },
+            { x: 0.68, y: 0.4, w: 0.04, h: 0.4, angle: 0 },
+            { x: 0.5, y: 0.52, w: 0.4, h: 0.04, angle: 0 },
+            { x: 0.32, y: 0.4, w: 0.04, h: 0.4, angle: 0 }
+        ],
+        screws: [{ x: 0.68, y: 0.28 }, { x: 0.68, y: 0.52 }, { x: 0.32, y: 0.52 }, { x: 0.32, y: 0.28 }],
+        holes: [{ x: 0.5, y: 0.4 }, { x: 0.5, y: 0.65 }]
+    },
+    19: {
+        planks: [
+            { x: 0.5, y: 0.25, w: 0.6, h: 0.04, angle: 0 },
+            { x: 0.3, y: 0.4, w: 0.04, h: 0.34, angle: 0 },
+            { x: 0.7, y: 0.4, w: 0.04, h: 0.34, angle: 0 },
+            { x: 0.5, y: 0.4, w: 0.5, h: 0.04, angle: 0.5 }
+        ],
+        screws: [{ x: 0.3, y: 0.25 }, { x: 0.7, y: 0.25 }, { x: 0.35, y: 0.32 }, { x: 0.65, y: 0.48 }, { x: 0.5, y: 0.25 }],
+        holes: [{ x: 0.3, y: 0.62 }, { x: 0.7, y: 0.62 }]
+    },
+    20: {
+        planks: [
+            { x: 0.5, y: 0.38, w: 0.6, h: 0.04, angle: 0 },         // 水平ライン
+            { x: 0.45, y: 0.34, w: 0.48, h: 0.04, angle: -1.30 },   // 左上斜め
+            { x: 0.55, y: 0.34, w: 0.48, h: 0.04, angle: 1.30 },    // 右上斜め
+            { x: 0.45, y: 0.45, w: 0.45, h: 0.04, angle: 0.436 },   // 左下斜め
+            { x: 0.55, y: 0.45, w: 0.45, h: 0.04, angle: -0.436 }   // 右下斜め
+        ],
+        screws: [{ x: 0.5, y: 0.16 }, { x: 0.3, y: 0.38 }, { x: 0.7, y: 0.38 }, { x: 0.4, y: 0.52 }, { x: 0.6, y: 0.52 }, { x: 0.5, y: 0.38 }],
+        holes: [{ x: 0.5, y: 0.62 }, { x: 0.5, y: 0.08 }]
+    }
+};
+
+// --- ステージ読み込み処理 ---
+function loadLevel(levelId) {
+    // 物理世界と変数の初期化
+    Composite.clear(world, false);
+    planks = [];
+    screws = [];
+    levelHoles = [];
+    selectedScrew = null;
+    isLevelCleared = false;
+
+    currentLevel = levelId;
+    if (currentSlot) {
+        localStorage.setItem(slotPrefix + 'current_level', currentLevel);
+    } else {
+        localStorage.setItem('mokumoku_current_level', currentLevel);
+    }
+
+    // タイマーの初期化
+    levelStartTime = Date.now();
+    timerRunning = true;
+    
+    // UIのテキスト更新
+    document.getElementById('level-indicator').innerText = `ステージ ${levelId}`;
+    const stageGroup = Math.ceil(levelId / 4);
+    document.getElementById('stage-theme').innerText = themeNames[stageGroup] || "極上のパズル";
+    document.getElementById('instruction').innerText = instructions[levelId] || "すべての板を落としましょう。";
+
+    const data = levels[levelId];
+    if (!data) return;
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    // 画面アスペクト比に応じたスケーリングと配置オフセットの定義（UIの重なり防止・グローバル同期）
+    if (w < h) {
+        // --- 縦長画面（スマホ）用レイアウト ---
+        globalScale = w * 0.85; // 左右に少し余白
+        globalOffsetX = (w - globalScale) / 2;
+        const playAreaHeight = h * 0.7; // 下部70%をプレイエリアにする
+        globalOffsetY = h * 0.3 + (playAreaHeight - globalScale) / 2; // 上部30%をUIスペースとして確保
+    } else {
+        // --- 横長画面（PC・タブレット）用レイアウト ---
+        globalScale = Math.min(w * 0.55, h * 0.8);
+        globalOffsetX = w * 0.3 + (w * 0.7 - globalScale) / 2; // 左側30%をUIスペースとして確保
+        globalOffsetY = (h - globalScale) / 2;
+    }
+
+    const toPhysX = x => globalOffsetX + x * globalScale;
+    const toPhysY = y => globalOffsetY + y * globalScale;
+
+    // 1. 板（木片）の生成
+    data.planks.forEach(p => {
+        const plankW = p.w * globalScale;
+        const plankH = p.h * globalScale;
+        const plank = Bodies.rectangle(toPhysX(p.x), toPhysY(p.y), plankW, plankH, {
+            angle: p.angle,
+            frictionAir: 0.05,            // 少し空気抵抗を高めてリアルなしっとり感を出す
+            frictionAngular: 0.08,        // 回転抵抗を高めて永久回転バグを根本解決
+            collisionFilter: { group: -1 }, // 板同士のすり抜けを許可してMatter.jsの干渉めり込みバグを防ぐ
+            render: { visible: false },    // 自作の極上ウッドシェーダーで描画するため非表示にする
+            label: 'plank'
+        });
+
+        // 描画用にサイズを独自プロパティとして保存
+        plank.width = plankW;
+        plank.height = plankH;
+
+        planks.push(plank);
+        Composite.add(world, plank);
+    });
+
+    // 2. 空き釘穴のロード＆登録
+    data.holes.forEach(holeData => {
+        const hX = toPhysX(holeData.x);
+        const hY = toPhysY(holeData.y);
+        levelHoles.push({ x: hX, y: hY });
+    });
+
+    // 3. 釘の初期位置も釘穴（再設置可能）としてコンパイル
+    data.screws.forEach(s => {
+        const sX = toPhysX(s.x);
+        const sY = toPhysY(s.y);
+        if (!levelHoles.some(h => Math.hypot(h.x - sX, h.y - sY) < 5)) {
+            levelHoles.push({ x: sX, y: sY });
+        }
+    });
+
+    // 4. 釘（木釘）の物理生成と初期固定
+    data.screws.forEach(s => {
+        const x = toPhysX(s.x);
+        const y = toPhysY(s.y);
+        const radius = globalScale * 0.025; // 画面サイズにスケールしたエレガントな釘サイズ
+
+        const screwBody = Bodies.circle(x, y, radius, {
+            isStatic: true,
+            render: { visible: false }, // 自作描画
+            label: 'screw'
+        });
+        
+        // ハンドメイド感を出すための微細な初期回転角
+        screwBody.slotAngle = Math.random() * Math.PI;
+
+        // 釘が打ち込まれている位置に重なる全ての板をクエリして固定（多少のズレがあっても確実にかみ合うように範囲クエリを使用）
+        const queryRadius = radius * 0.85;
+        const queryBounds = {
+            min: { x: x - queryRadius, y: y - queryRadius },
+            max: { x: x + queryRadius, y: y + queryRadius }
+        };
+        const boards = Matter.Query.region(planks, queryBounds);
+        const constraints = [];
+        const currentPlanks = [];
+
+        boards.forEach(plank => {
+            // AABBの交差だけでなく、実際の板のポリゴン内に釘の位置が含まれているか厳密にチェック
+            if (!Matter.Vertices.contains(plank.vertices, { x, y })) {
+                return;
+            }
+            const localPoint = Vector.sub({ x, y }, plank.position);
+            const rotatedPoint = Vector.rotate(localPoint, -plank.angle);
+            const constraint = Constraint.create({
+                bodyA: plank,
+                pointA: rotatedPoint,
+                bodyB: screwBody,
+                pointB: { x: 0, y: 0 },
+                stiffness: 1.0,
+                length: 0,
+                render: { visible: false }
+            });
+            Composite.add(world, constraint);
+            constraints.push(constraint);
+            currentPlanks.push(plank);
+        });
+
+        screws.push({
+            body: screwBody,
+            constraints: constraints,
+            currentPlanks: currentPlanks,
+            originalPosition: { x, y }
+        });
+        Composite.add(world, screwBody);
+    });
+
+    updateStageSelector();
+}
+
+// --- 操作ロジック ---
+const mouse = Mouse.create(render.canvas);
+const mouseConstraint = MouseConstraint.create(engine, {
+    mouse: mouse,
+    constraint: { stiffness: 0.2, render: { visible: false } }
+});
+
+Events.on(mouseConstraint, 'mousedown', function(event) {
+    const mousePos = event.mouse.position;
+    const scale = globalScale;
+
+    // 初回タップ時のAudio初期化（ブラウザポリシー対応）
+    initAudio();
+
+    if (!selectedScrew) {
+        // --- 1. 釘を抜くフェーズ ---
+        for (let s of screws) {
+            // 釘のタップ判定（操作しやすい広めのアクティブ径）
+            if (Vector.magnitude(Vector.sub(mousePos, s.body.position)) < scale * 0.06) {
+                playPopSound();
+                selectedScrew = s;
+                selectedScrew.originalPosition = { x: s.body.position.x, y: s.body.position.y };
+                selectedScrew.body.isSensor = true; // 手に持っている間は衝突判定をオフにする
+
+                // 物理的な固定ジョイント（制約）を一時解除
+                if (s.constraints) {
+                    s.constraints.forEach(c => Composite.remove(world, c));
+                    s.constraints = [];
+                }
+                s.currentPlanks = [];
+                break;
+            }
+        }
+    } else {
+        // --- 2. 釘を刺すフェーズ ---
+        let targetHole = null;
+        for (let hData of levelHoles) {
+            if (Vector.magnitude(Vector.sub(mousePos, hData)) < scale * 0.06) {
+                // 別の釘がすでに刺さっていないか占有チェック
+                const isOccupied = screws.some(s => s !== selectedScrew && Vector.magnitude(Vector.sub(s.body.position, hData)) < 5);
+                if (!isOccupied) {
+                    targetHole = hData;
+                    break;
+                }
+            }
+        }
+
+        if (targetHole) {
+            // 空いている有効な穴に差し込む
+            playTunkSound();
+            selectedScrew.body.isSensor = false; // 実体に復元
+            Matter.Body.setPosition(selectedScrew.body, targetHole);
+
+            // 新しく刺さった穴の下にある板をすべて検出してジョイント接続（範囲クエリで吸着を補正）
+            const queryRadius = (scale * 0.025) * 0.85;
+            const queryBounds = {
+                min: { x: targetHole.x - queryRadius, y: targetHole.y - queryRadius },
+                max: { x: targetHole.x + queryRadius, y: targetHole.y + queryRadius }
+            };
+            const boards = Matter.Query.region(planks, queryBounds);
+            selectedScrew.constraints = [];
+            selectedScrew.currentPlanks = [];
+
+            boards.forEach(plank => {
+                // 厳密なポリゴン内判定
+                if (!Matter.Vertices.contains(plank.vertices, targetHole)) {
+                    return;
+                }
+                const localPoint = Vector.sub(targetHole, plank.position);
+                const rotatedPoint = Vector.rotate(localPoint, -plank.angle);
+                const constraint = Constraint.create({
+                    bodyA: plank,
+                    pointA: rotatedPoint,
+                    bodyB: selectedScrew.body,
+                    pointB: { x: 0, y: 0 },
+                    stiffness: 1.0,
+                    length: 0,
+                    render: { visible: false }
+                });
+                Composite.add(world, constraint);
+                selectedScrew.constraints.push(constraint);
+                selectedScrew.currentPlanks.push(plank);
+            });
+
+            selectedScrew = null;
+        } else {
+            // 空いていない場所をタップしたら元の位置に戻す（キャンセル処理）
+            const orig = selectedScrew.originalPosition;
+            selectedScrew.body.isSensor = false; // 実体に復元
+            Matter.Body.setPosition(selectedScrew.body, orig);
+
+            // 元の位置で再度ジョイントを復元
+            const queryRadius = (scale * 0.025) * 0.85;
+            const queryBounds = {
+                min: { x: orig.x - queryRadius, y: orig.y - queryRadius },
+                max: { x: orig.x + queryRadius, y: orig.y + queryRadius }
+            };
+            const boards = Matter.Query.region(planks, queryBounds);
+            selectedScrew.constraints = [];
+            selectedScrew.currentPlanks = [];
+
+            boards.forEach(plank => {
+                // 厳密なポリゴン内判定
+                if (!Matter.Vertices.contains(plank.vertices, orig)) {
+                    return;
+                }
+                const localPoint = Vector.sub(orig, plank.position);
+                const rotatedPoint = Vector.rotate(localPoint, -plank.angle);
+                const constraint = Constraint.create({
+                    bodyA: plank,
+                    pointA: rotatedPoint,
+                    bodyB: selectedScrew.body,
+                    pointB: { x: 0, y: 0 },
+                    stiffness: 1.0,
+                    length: 0,
+                    render: { visible: false }
+                });
+                Composite.add(world, constraint);
+                selectedScrew.constraints.push(constraint);
+                selectedScrew.currentPlanks.push(plank);
+            });
+
+            selectedScrew = null;
+        }
+    }
+});
+
+// --- 重なり音を制御するためのタイムスタンプ管理 ---
+const lastHitTimes = new Map();
+
+// --- クリア判定と落下・衝突処理 ---
+Events.on(engine, 'afterUpdate', function() {
+    const now = Date.now();
+
+    // 選択された釘をマウスカーソル位置に追従させる
+    if (selectedScrew) {
+        Matter.Body.setPosition(selectedScrew.body, mouse.position);
+    }
+
+    const h = window.innerHeight;
+    let plankFell = false;
+
+    // 画面外に落ちた板を物理世界から除外
+    for (let i = planks.length - 1; i >= 0; i--) {
+        if (planks[i].position.y > h + 50) {
+            Composite.remove(world, planks[i]);
+            planks.splice(i, 1);
+            plankFell = true;
+        }
+    }
+
+    if (plankFell) {
+        playPlankFallSound();
+    }
+
+    // すべての板が落ちたらステージクリア
+    if (!isLevelCleared && planks.length === 0 && screws.length > 0) {
+        isLevelCleared = true; // 重複実行防止フラグを立てる
+        timerRunning = false;
+        
+        const elapsedSec = (Date.now() - levelStartTime) / 1000;
+        let isNewRecord = false;
+        
+        if (currentSlot) {
+            const bestKey = `${slotPrefix}best_time_stage_${currentLevel}`;
+            const prevBestStr = localStorage.getItem(bestKey);
+            if (!prevBestStr || elapsedSec < parseFloat(prevBestStr)) {
+                isNewRecord = true;
+                localStorage.setItem(bestKey, elapsedSec.toFixed(2));
+            }
+        }
+        
+        if (isNewRecord) {
+            showToast(elapsedSec);
+            playNewRecordSound();
+        } else {
+            playChimeSound();
+        }
+        
+        const nextLevel = currentLevel + 1;
+        
+        if (currentSlot) {
+            const maxKey = `${slotPrefix}max_level`;
+            let slotMaxClearedLevel = parseInt(localStorage.getItem(maxKey) || '1');
+            if (nextLevel > slotMaxClearedLevel && nextLevel <= 20) {
+                localStorage.setItem(maxKey, nextLevel);
+                maxClearedLevel = nextLevel;
+            } else if (nextLevel > 20) {
+                maxClearedLevel = 21;
+            }
+        } else {
+            if (nextLevel > maxClearedLevel && nextLevel <= 20) {
+                maxClearedLevel = nextLevel;
+                localStorage.setItem('mokumoku_max_level', maxClearedLevel);
+            }
+        }
+        
+        if (currentLevel < 20) {
+            setTimeout(() => {
+                loadLevel(nextLevel);
+            }, isNewRecord ? 2000 : 800);
+        } else {
+            document.getElementById('instruction').innerText = "全20ステージクリア！極上の癒やしをあなたに。";
+        }
+    }
+
+    // 2. 板同士がすれ違う・ぶつかる瞬間のこすれ音 (板同士は非衝突設定のためSATで検出)
+    for (let i = 0; i < planks.length; i++) {
+        for (let j = i + 1; j < planks.length; j++) {
+            const p1 = planks[i];
+            const p2 = planks[j];
+            if (Matter.Bounds.overlaps(p1.bounds, p2.bounds)) {
+                const collision = Matter.SAT.collides(p1, p2);
+                if (collision.collided) {
+                    const pairKey = `p${p1.id}-p${p2.id}`;
+                    const lastTime = lastHitTimes.get(pairKey) || 0;
+                    if (now - lastTime > 700) { // 最低700msの間隔
+                        playPlankHitPlankSound();
+                        lastHitTimes.set(pairKey, now);
+                    }
+                }
+            }
+        }
+    }
+});
+
+// --- 衝突のペア別フィルタリング & 衝突音響トリガー ---
+function filterPinCollisions(event) {
+    event.pairs.forEach(pair => {
+        const bodyA = pair.bodyA;
+        const bodyB = pair.bodyB;
+        
+        let screwBody = null;
+        let plankBody = null;
+        if (bodyA.label === 'screw' && bodyB.label === 'plank') {
+            screwBody = bodyA;
+            plankBody = bodyB;
+        } else if (bodyB.label === 'screw' && bodyA.label === 'plank') {
+            screwBody = bodyB;
+            plankBody = bodyA;
+        }
+        
+        if (screwBody && plankBody) {
+            // その釘が現在その板を固定している場合は、衝突判定を完全に無効化 (プルプル揺れるバグを解消)
+            const sObj = screws.find(s => s.body === screwBody);
+            if (sObj && sObj.currentPlanks && sObj.currentPlanks.includes(plankBody)) {
+                pair.isActive = false;
+            }
+        }
+    });
+}
+
+// 衝突開始イベントで非固定ペアの衝突音を再生
+Events.on(engine, 'collisionStart', function(event) {
+    // 1. まず固定中の釘と板の衝突を無効化
+    filterPinCollisions(event);
+    
+    // 2. 有効な衝突（他の釘にぶつかった場合）にASMR音を再生
+    if (isMuted || !audioCtx) return;
+    const now = Date.now();
+
+    event.pairs.forEach(pair => {
+        if (!pair.isActive) return; // 除外された衝突は音を鳴らさない
+        
+        const labelA = pair.bodyA.label;
+        const labelB = pair.bodyB.label;
+        
+        if ((labelA === 'plank' && labelB === 'screw') || (labelA === 'screw' && labelB === 'plank')) {
+            const pairKey = `p${pair.bodyA.id}-s${pair.bodyB.id}`;
+            const lastTime = lastHitTimes.get(pairKey) || 0;
+            if (now - lastTime > 400) {
+                playPlankHitScrewSound();
+                lastHitTimes.set(pairKey, now);
+            }
+        }
+    });
+});
+
+// 継続中の衝突でもフィルタリングを適用し続ける
+Events.on(engine, 'collisionActive', filterPinCollisions);
+
+
+// --- 極上のビジュアルシェーディング (Canvas custom rendering) ---
+
+// 1. 角丸四角形を描画するパス生成ユーティリティ
+function drawRoundedRectPath(ctx, x, y, width, height, radius) {
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+}
+
+// 2. リアルな葉（Bezier曲線を用いた北欧風 botanical アート）
+function drawLeaf(ctx, x, y, size, angle, leafColor) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    
+    // 葉の輪郭
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(size * 0.4, -size * 0.35, size * 0.8, -size * 0.25, size, 0);
+    ctx.bezierCurveTo(size * 0.8, size * 0.25, size * 0.4, size * 0.35, 0, 0);
+    ctx.fillStyle = leafColor;
+    ctx.globalAlpha = 0.18; // 重なりが美しく透けるブレンド
+    ctx.fill();
+
+    // 葉脈
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(size * 0.85, 0);
+    ctx.strokeStyle = colors.leafVein;
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.35;
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+// 3. 葉のついた枝全体の描画（揺らぎ付き）
+function drawBranch(ctx, x, y, length, baseAngle, swayAngle, leafColor) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(baseAngle + swayAngle);
+    
+    // 枝の幹
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(length * 0.4, -length * 0.08, length, 0);
+    ctx.strokeStyle = '#a1887f';
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.4;
+    ctx.stroke();
+    
+    // 枝先の葉を並べる
+    const numLeaves = 7;
+    for (let i = 1; i <= numLeaves; i++) {
+        const t = i / numLeaves;
+        const lx = t * length;
+        const ly = -t * 0.08 * length; // 幹のカーブに沿わせる
+        
+        const size = (1 - t * 0.4) * 32; // 枝先ほど細く
+        
+        drawLeaf(ctx, lx, ly, size, -0.5, leafColor);
+        drawLeaf(ctx, lx, ly, size, 0.5, leafColor);
+    }
+    
+    ctx.restore();
+}
+
+// 背景を舞い散るかすかな落葉データ構造と描画ロジック
+const fallingLeaves = [];
+for (let i = 0; i < 7; i++) {
+    fallingLeaves.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight - 200,
+        size: 15 + Math.random() * 20,
+        speedX: -0.2 - Math.random() * 0.3,
+        speedY: 0.4 + Math.random() * 0.6,
+        angle: Math.random() * Math.PI * 2,
+        spin: 0.003 + Math.random() * 0.006
+    });
+}
+
+function updateAndDrawFallingLeaves(ctx, w, h) {
+    fallingLeaves.forEach(leaf => {
+        leaf.y += leaf.speedY;
+        leaf.x += leaf.speedX;
+        leaf.angle += leaf.spin;
+        
+        // 画面外に出たら上部に戻す
+        if (leaf.y > h + 50) {
+            leaf.y = -50;
+            leaf.x = Math.random() * w;
+        }
+        if (leaf.x < -50) {
+            leaf.x = w + 50;
+        }
+        
+        ctx.save();
+        ctx.translate(leaf.x, leaf.y);
+        ctx.rotate(leaf.angle);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(leaf.size * 0.4, -leaf.size * 0.35, leaf.size * 0.8, -leaf.size * 0.25, leaf.size, 0);
+        ctx.bezierCurveTo(leaf.size * 0.8, leaf.size * 0.25, leaf.size * 0.4, leaf.size * 0.35, 0, 0);
+        ctx.fillStyle = colors.leaf;
+        ctx.globalAlpha = 0.08; // 非常に淡い透け感
+        ctx.fill();
+        ctx.restore();
+    });
+}
+
+// 背景の木目テクスチャの描画
+function drawBackgroundWoodGrain(ctx, w, h) {
+    ctx.save();
+    
+    // 暗い木目シャドウ
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+    ctx.lineWidth = 4;
+    for (let i = 1; i <= 6; i++) {
+        const xStart = (i / 7) * w;
+        ctx.beginPath();
+        ctx.moveTo(xStart, 0);
+        ctx.bezierCurveTo(
+            xStart + Math.sin(i) * 60, h * 0.3,
+            xStart - Math.sin(i) * 60, h * 0.7,
+            xStart, h
+        );
+        ctx.stroke();
+    }
+    
+    // 明るい木目ハイライト（少し右下にずらして立体感を出す）
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+    ctx.lineWidth = 2.5;
+    for (let i = 1; i <= 6; i++) {
+        const xStart = (i / 7) * w + 6;
+        ctx.beginPath();
+        ctx.moveTo(xStart, 0);
+        ctx.bezierCurveTo(
+            xStart + Math.sin(i) * 60, h * 0.3,
+            xStart - Math.sin(i) * 60, h * 0.7,
+            xStart, h
+        );
+        ctx.stroke();
+    }
+    
+    // 背景の節（年輪）の描画 - 暗いシャドウ
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(w * 0.75, h * 0.35, 80, 120, Math.PI / 10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(w * 0.75, h * 0.35, 45, 80, Math.PI / 10, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 背景の節（年輪）の描画 - 明るいハイライト
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(w * 0.75 + 6, h * 0.35 + 4, 80, 120, Math.PI / 10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(w * 0.75 + 6, h * 0.35 + 4, 45, 80, Math.PI / 10, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+// 背景の森の木々（シルエット）の描画
+function drawBackgroundTree(ctx, x, y, width, height, color) {
+    ctx.save();
+    ctx.fillStyle = color;
+    
+    // 幹
+    ctx.beginPath();
+    ctx.fillRect(x - width * 0.06, y - height * 0.15, width * 0.12, height * 0.15);
+    
+    // 三層の松葉の三角形
+    ctx.beginPath();
+    ctx.moveTo(x, y - height * 0.45);
+    ctx.lineTo(x + width * 0.5, y - height * 0.1);
+    ctx.lineTo(x - width * 0.5, y - height * 0.1);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y - height * 0.75);
+    ctx.lineTo(x + width * 0.4, y - height * 0.35);
+    ctx.lineTo(x - width * 0.4, y - height * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y - height);
+    ctx.lineTo(x + width * 0.3, y - height * 0.6);
+    ctx.lineTo(x - width * 0.3, y - height * 0.6);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.restore();
+}
+
+Events.on(render, 'afterRender', function() {
+    if (timerRunning) {
+        const elapsed = Date.now() - levelStartTime;
+        document.getElementById('timer-display').innerText = formatTime(elapsed);
+    }
+
+    const ctx = render.context;
+    const w = render.options.width;
+    const h = render.options.height;
+    const scale = globalScale;
+
+    // --- (A) 朝の木漏れ日（Komorebi）の背景表現 ---
+    ctx.globalCompositeOperation = 'destination-over';
+    
+    // 柔らかな円形グラデーション
+    const bgGrad = ctx.createRadialGradient(w * 0.2, h * 0.2, 50, w * 0.5, h * 0.5, Math.max(w, h));
+    bgGrad.addColorStop(0, colors.bgGradStart);
+    bgGrad.addColorStop(1, colors.bgGradEnd);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // 差し込むカーテン越しの光条（斜めの日差し）
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.03; // ダーク背景に合わせて光条をより微細に
+    
+    ctx.beginPath();
+    ctx.moveTo(w * 0.05, 0); ctx.lineTo(w * 0.35, 0);
+    ctx.lineTo(w * 0.75, h); ctx.lineTo(w * 0.45, h);
+    ctx.closePath(); ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(w * 0.45, 0); ctx.lineTo(w * 0.65, 0);
+    ctx.lineTo(w * 0.95, h * 0.85); ctx.lineTo(w * 0.75, h * 0.85);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // 背景の木目テクスチャを描画
+    drawBackgroundWoodGrain(ctx, w, h);
+    
+    // 背景の森の木々（シルエット）を描画
+    const forestTreeColor = 'rgba(28, 40, 25, 0.12)'; // 深い緑黒のシルエット
+    drawBackgroundTree(ctx, w * 0.15, h, scale * 0.32, scale * 0.45, forestTreeColor);
+    drawBackgroundTree(ctx, w * 0.35, h, scale * 0.26, scale * 0.35, forestTreeColor);
+    drawBackgroundTree(ctx, w * 0.65, h, scale * 0.28, scale * 0.40, forestTreeColor);
+    drawBackgroundTree(ctx, w * 0.85, h, scale * 0.35, scale * 0.50, forestTreeColor);
+
+    // --- (B) 風にそよぐ botanical 葉の描画 ---
+    ctx.globalCompositeOperation = 'source-over';
+    const time = Date.now() * 0.0008;
+    const sway = Math.sin(time) * 0.04; // 非常にゆったりとした揺らぎ角
+
+    // 画面四隅からの枝
+    drawBranch(ctx, -10, -10, scale * 0.35, 0.4, sway, colors.leaf);
+    drawBranch(ctx, w + 10, -10, scale * 0.3, Math.PI - 0.4, -sway * 0.8, colors.leaf);
+    drawBranch(ctx, w + 10, h + 10, scale * 0.25, -Math.PI * 0.75, sway * 0.5, colors.leaf);
+
+    // 背景を舞い散るかすかな落葉を描画
+    updateAndDrawFallingLeaves(ctx, w, h);
+
+
+    // --- (C) 木の穴（Holes）の描画 ---
+    const holeRadius = scale * 0.024;
+    levelHoles.forEach(hole => {
+        ctx.save();
+        
+        // 深い影穴
+        ctx.beginPath();
+        ctx.arc(hole.x, hole.y, holeRadius, 0, Math.PI * 2);
+        ctx.fillStyle = colors.hole;
+        ctx.fill();
+        
+        // インサイドシャドウ（立体的な掘り込み表現）
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // 穴の周囲のハイライト
+        ctx.beginPath();
+        ctx.arc(hole.x, hole.y, holeRadius + 1, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.restore();
+    });
+
+
+    // --- (D) 木の板（Planks）の描画 ---
+    planks.forEach(plank => {
+        const width = plank.width;
+        const height = plank.height;
+        const angle = plank.angle;
+        const pos = plank.position;
+        const radius = Math.min(width, height) * 0.4; // なめらかな角丸
+
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(angle);
+
+        // リアルなドロップシャドウ（柔らかく立体感を持たせる）
+        ctx.shadowColor = 'rgba(78, 54, 41, 0.16)';
+        ctx.shadowBlur = scale * 0.02;
+        ctx.shadowOffsetX = scale * 0.008;
+        ctx.shadowOffsetY = scale * 0.012;
+
+        // 板の塗りつぶし
+        ctx.beginPath();
+        drawRoundedRectPath(ctx, -width/2, -height/2, width, height, radius);
+        ctx.fillStyle = colors.plank;
+        ctx.fill();
+
+        // シャドウ効果を切って内部ディテール（木目）を描画
+        ctx.shadowColor = 'transparent';
+
+        // 優しい木目テクスチャのランダムシミュレート
+        ctx.strokeStyle = 'rgba(78, 54, 41, 0.07)';
+        ctx.lineWidth = 2;
+        
+        // 水平木目ライン1
+        ctx.beginPath();
+        ctx.moveTo(-width/2 + radius, -height * 0.25);
+        ctx.bezierCurveTo(-width*0.25, -height*0.2, width*0.25, -height*0.3, width/2 - radius, -height*0.25);
+        ctx.stroke();
+
+        // 水平木目ライン2（少し歪んだ年輪風）
+        ctx.beginPath();
+        ctx.moveTo(-width/2 + radius, 0);
+        ctx.bezierCurveTo(-width*0.3, height*0.1, width*0.2, -height*0.15, width/2 - radius, -height*0.02);
+        ctx.stroke();
+
+        // 水平木目ライン3
+        ctx.beginPath();
+        ctx.moveTo(-width/2 + radius, height * 0.25);
+        ctx.bezierCurveTo(-width*0.2, height*0.35, width*0.25, height*0.18, width/2 - radius, height*0.25);
+        ctx.stroke();
+
+        // 外枠フチ
+        ctx.strokeStyle = colors.plankBorder;
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+
+        ctx.restore();
+    });
+
+
+    // --- (E) 板のすき間から見える、釘穴の「ガイド印」を描画 ---
+    // 板が重なっている部分の穴について、板の上にうっすらと点線ガイドを描画する
+    levelHoles.forEach(hole => {
+        const isCovered = planks.some(plank => Matter.Vertices.contains(plank.vertices, hole));
+        if (isCovered) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(hole.x, hole.y, holeRadius - 1.5, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(78, 54, 41, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]); // 点線で「貫通できる」印
+            ctx.stroke();
+            ctx.restore();
+        }
+    });
+
+
+    // --- (F) 木の釘（Screws）の描画 ---
+    screws.forEach(s => {
+        const pos = s.body.position;
+        const radius = s.body.circleRadius;
+        const slotAngle = s.body.slotAngle;
+        const isSelected = (selectedScrew === s);
+
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+
+        // 選択されている釘のバックライト（グロー）
+        if (isSelected) {
+            ctx.beginPath();
+            ctx.arc(0, 0, radius + 7, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(253, 216, 53, 0.25)';
+            ctx.fill();
+        }
+
+        // 釘頭の立体影
+        ctx.shadowColor = 'rgba(0,0,0,0.22)';
+        ctx.shadowBlur = 5;
+        ctx.shadowOffsetX = 1.5;
+        ctx.shadowOffsetY = 2.5;
+
+        // 釘頭ベース
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.fillStyle = isSelected ? '#fff3e0' : colors.screw;
+        ctx.fill();
+
+        ctx.shadowColor = 'transparent';
+
+        // 釘頭のアウトライン
+        ctx.strokeStyle = colors.hole;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // 金属フチハイライト
+        ctx.beginPath();
+        ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
+        ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // 溝（ドライバーのプラス穴）
+        ctx.rotate(slotAngle);
+        ctx.beginPath();
+        ctx.moveTo(-radius * 0.5, 0);
+        ctx.lineTo(radius * 0.5, 0);
+        ctx.moveTo(0, -radius * 0.5);
+        ctx.lineTo(0, radius * 0.5);
+        ctx.strokeStyle = colors.hole;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        ctx.restore();
+    });
+});
+// --- UIイベント & ステージセレクターハンドラ ---
+
+const overlay = document.getElementById('overlay');
+const drawer = document.getElementById('drawer');
+const menuBtn = document.getElementById('menu-btn');
+const closeBtn = document.getElementById('drawer-close');
+const resetBtn = document.getElementById('reset-btn');
+const stageGrid = document.getElementById('stage-grid');
+
+// ステージ一覧を描画
+function updateStageSelector() {
+    stageGrid.innerHTML = '';
+    
+    // Find slot's max level cleared
+    let slotMaxClearedLevel = 1;
+    if (currentSlot) {
+        slotMaxClearedLevel = parseInt(localStorage.getItem(`${slotPrefix}max_level`) || '1');
+    }
+    
+    for (let i = 1; i <= 20; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'stage-tile';
+        if (i === currentLevel) tile.classList.add('active');
+        
+        const bestTime = currentSlot ? localStorage.getItem(`${slotPrefix}best_time_stage_${i}`) : null;
+        if (i < slotMaxClearedLevel || bestTime) {
+            tile.classList.add('cleared');
+        }
+        
+        // Inner text for stage number
+        const numberSpan = document.createElement('span');
+        numberSpan.innerText = i;
+        tile.appendChild(numberSpan);
+        
+        // Best time subtext
+        const timeDiv = document.createElement('div');
+        timeDiv.className = 'stage-time';
+        if (bestTime) {
+            timeDiv.innerText = `${parseFloat(bestTime).toFixed(2)}秒`;
+        } else {
+            timeDiv.innerText = '--.--秒';
+        }
+        tile.appendChild(timeDiv);
+
+        tile.addEventListener('click', () => {
+            initAudio();
+            loadLevel(i);
+            closeDrawer();
+        });
+        stageGrid.appendChild(tile);
+    }
+}
+
+function openDrawer() {
+    initAudio();
+    updateStageSelector();
+    overlay.classList.add('open');
+    drawer.classList.add('open');
+}
+
+function closeDrawer() {
+    overlay.classList.remove('open');
+    drawer.classList.remove('open');
+}
+
+menuBtn.addEventListener('click', openDrawer);
+closeBtn.addEventListener('click', closeDrawer);
+overlay.addEventListener('click', closeDrawer);
+
+resetBtn.addEventListener('click', () => {
+    initAudio();
+    loadLevel(currentLevel);
+});
+
+// --- セーブスロット管理・タイマーヘルパー関数群 ---
+
+function formatTime(ms) {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    const centiseconds = Math.floor((ms % 1000) / 10);
+    return `⏱ ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+}
+
+function escapeHTML(str) {
+    return str.replace(/[&<>'"]/g, 
+        tag => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[tag] || tag)
+    );
+}
+
+function showToast(timeInSec) {
+    const toast = document.getElementById('toast-container');
+    const toastTime = document.getElementById('toast-time');
+    toastTime.innerText = `${timeInSec.toFixed(2)}秒`;
+    toast.classList.add('show');
+    
+    // Auto hide after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+function playNewRecordSound() {
+    if (isMuted || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    
+    // Standard chime sound
+    playChimeSound();
+    
+    // Add a happy rising marimba-like pattern slightly after
+    const notes = [392.00, 523.25, 659.25, 783.99, 1046.50, 1318.51]; // G4, C5, E5, G5, C6, E6
+    
+    notes.forEach((freq, index) => {
+        const playTime = now + 0.15 + index * 0.08;
+        
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, playTime);
+        
+        gain.gain.setValueAtTime(0.08, playTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, playTime + 0.5);
+        
+        osc.start(playTime);
+        osc.stop(playTime + 0.5);
+    });
+}
+
+function updateSlotButtonText() {
+    const slotBtn = document.getElementById('slot-btn');
+    if (currentSlot) {
+        const name = localStorage.getItem(slotPrefix + 'player_name') || `プレイヤー ${currentSlot}`;
+        slotBtn.innerText = name;
+    } else {
+        slotBtn.innerText = 'ユーザー切替';
+    }
+}
+
+function renderSlots() {
+    const slotList = document.getElementById('slot-list');
+    slotList.innerHTML = '';
+    
+    for (let i = 1; i <= 5; i++) {
+        const prefix = `mokumoku_slot_${i}_`;
+        let name = localStorage.getItem(prefix + 'player_name') || `プレイヤー ${i}`;
+        let maxLvl = parseInt(localStorage.getItem(prefix + 'max_level') || '1');
+        
+        let recordsCount = 0;
+        let bestStage = null;
+        let bestTime = Infinity;
+        for (let s = 1; s <= 20; s++) {
+            let t = localStorage.getItem(`${prefix}best_time_stage_${s}`);
+            if (t) {
+                recordsCount++;
+                let parsed = parseFloat(t);
+                if (parsed < bestTime) {
+                    bestTime = parsed;
+                    bestStage = s;
+                }
+            }
+        }
+        
+        const card = document.createElement('div');
+        card.className = 'slot-card';
+        if (currentSlot == i) {
+            card.classList.add('active');
+        }
+        
+        card.innerHTML = `
+            <div class="slot-info">
+                <div class="slot-name">
+                    <span class="name-text">${escapeHTML(name)}</span>
+                    <button class="slot-edit-btn" title="名前を編集">✏️</button>
+                </div>
+                <div class="slot-meta">進行度: ${recordsCount} / 20 クリア</div>
+                <div class="slot-meta">ハイスコア: ${bestStage !== null ? `ステージ ${bestStage} (${bestTime.toFixed(2)}秒)` : '---'}</div>
+            </div>
+            <button class="slot-select-btn">選択</button>
+        `;
+        
+        const editBtn = card.querySelector('.slot-edit-btn');
+        editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const newName = prompt('新しいプレイヤー名を入力してください（最大10文字）：', name);
+            if (newName !== null && newName.trim() !== '') {
+                const trimmed = newName.trim().substring(0, 10);
+                localStorage.setItem(prefix + 'player_name', trimmed);
+                renderSlots();
+                updateSlotButtonText();
+            }
+        });
+        
+        const selectSlot = () => {
+            selectSlotId(i);
+        };
+        card.addEventListener('click', selectSlot);
+        card.querySelector('.slot-select-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectSlot();
+        });
+        
+        slotList.appendChild(card);
+    }
+    
+    // Add dynamic close button to container if a slot is already selected
+    let closeBtn = document.getElementById('slot-close-btn');
+    if (currentSlot !== null) {
+        if (!closeBtn) {
+            closeBtn = document.createElement('button');
+            closeBtn.id = 'slot-close-btn';
+            closeBtn.className = 'btn';
+            closeBtn.style.marginTop = '10px';
+            closeBtn.style.alignSelf = 'center';
+            closeBtn.style.pointerEvents = 'auto';
+            closeBtn.innerText = '閉じる';
+            closeBtn.addEventListener('click', () => {
+                document.getElementById('slot-overlay').classList.remove('open');
+            });
+            document.getElementById('slot-container').appendChild(closeBtn);
+        }
+    } else {
+        if (closeBtn) {
+            closeBtn.remove();
+        }
+    }
+}
+
+function selectSlotId(slotId) {
+    currentSlot = slotId;
+    slotPrefix = `mokumoku_slot_${slotId}_`;
+    localStorage.setItem('mokumoku_current_slot', slotId);
+    
+    if (!localStorage.getItem(slotPrefix + 'player_name')) {
+        localStorage.setItem(slotPrefix + 'player_name', `プレイヤー ${slotId}`);
+    }
+    
+    maxClearedLevel = parseInt(localStorage.getItem(slotPrefix + 'max_level') || '1');
+    currentLevel = parseInt(localStorage.getItem(slotPrefix + 'current_level') || '1');
+    
+    updateSlotButtonText();
+    updateStageSelector();
+    
+    document.getElementById('slot-overlay').classList.remove('open');
+    
+    loadLevel(currentLevel);
+}
+
+// User slot button trigger
+document.getElementById('slot-btn').addEventListener('click', () => {
+    initAudio();
+    renderSlots();
+    document.getElementById('slot-overlay').classList.add('open');
+});
+
+// Click outside to close slot modal (if a slot is selected)
+document.getElementById('slot-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('slot-overlay') && currentSlot !== null) {
+        document.getElementById('slot-overlay').classList.remove('open');
+    }
+});
+
+// 初期ロード
+loadLevel(currentLevel); // Show background level
+const savedSlot = localStorage.getItem('mokumoku_current_slot');
+if (savedSlot) {
+    selectSlotId(parseInt(savedSlot));
+} else {
+    renderSlots();
+    document.getElementById('slot-overlay').classList.add('open');
+}
+
+// ウィンドウリサイズハンドラ（ Matter.js のキャンバスリサイズ & 座標再計算 ）
+window.addEventListener('resize', () => {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    render.canvas.width = w;
+    render.canvas.height = h;
+    render.options.width = w;
+    render.options.height = h;
+    loadLevel(currentLevel);
+});
+
+</script>
+</body>
+</html>
